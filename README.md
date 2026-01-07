@@ -1,149 +1,196 @@
-# NIDS (KDD’99) – Training, Realtime Detection, and Dashboard
+# Network Intrusion Detection System (NIDS) – KDD Cup 1999
 
-This project demonstrates a simple **Network Intrusion Detection System (NIDS)** using the **KDD Cup 1999 (10%)** dataset.  
-It includes:
+This project implements a **machine-learning-based Network Intrusion Detection System (NIDS)** using the **KDD Cup 1999 (10%) dataset**.  
+The system is capable of:
 
-- **Model training** (offline)
-- **Realtime-style prediction** on incoming connections
-- **A dashboard GUI** to display live predictions
-- **A traffic simulator** that feeds the dashboard/predictor
+- Training an intrusion detection model offline
+- Detecting network intrusions in near-realtime
+- Classifying traffic into attack categories
+- Displaying live predictions in a **Streamlit dashboard**
+- Simulating live network traffic for demonstration purposes
 
-The model predicts **attack categories** (because training was done with `--use_categories`):
+The model predicts **high-level attack categories**:
 
 - `normal`
 - `dos`
 - `probe`
 - `r2l`
 - `u2r`
-- (optionally `other` if used during mapping)
 
 ---
 
-## Project Files Explained
+## Project Structure
+
+```
+.
+├── dashboard.py
+├── incoming.csv
+├── incoming copy.csv
+├── kddcup.data_10_percent
+├── nids_kdd_pipeline.joblib
+├── nids_label_encoder.joblib
+├── nids_training.py
+├── realtime_predict.py
+├── traffic_simulator.py
+└── README.md
+```
+
+---
+
+## File Descriptions
 
 ### `kddcup.data_10_percent`
-The raw **KDD Cup 1999** dataset file (10% subset).  
-- Each row = one network connection record
-- Contains **41 features + 1 label** (42 columns total)
-- Used for **training** and for generating simulated live traffic
+The **KDD Cup 1999 (10%) dataset** used for training and simulation.
+
+- Each row = one network connection
+- 41 traffic features + 1 label
+- Used for model training and traffic simulation
 
 ---
 
 ### `nids_training.py`
-Trains the NIDS model using the KDD dataset and saves the trained artifacts.
+Trains the intrusion detection model.
 
-What it does:
-- Loads `kddcup.data_10_percent`
-- Applies preprocessing:
-  - scales numeric features
-  - one-hot encodes categorical features (`protocol_type`, `service`, `flag`)
-- Trains an ML model (SGDClassifier with `log_loss`)
-- Evaluates performance
-- Saves:
-  - `nids_kdd_pipeline.joblib`
-  - `nids_label_encoder.joblib`
+- Loads the KDD dataset
+- Groups attack labels into categories
+- Applies preprocessing (scaling + one-hot encoding)
+- Trains a machine-learning classifier
+- Saves trained artifacts
 
-> ✅ Use this file when you want to retrain the model or experiment with different settings.
+Outputs:
+- `nids_kdd_pipeline.joblib`
+- `nids_label_encoder.joblib`
 
 ---
 
 ### `nids_kdd_pipeline.joblib`
-Saved trained model **pipeline** (preprocessing + classifier).  
-This includes:
-- Scaling + OneHotEncoding configuration learned from training data
-- The trained classifier weights
-
-Used by:
-- `realtime_predict.py`
-- `dashboard.py`
+Serialized trained model pipeline (preprocessing + classifier).
 
 ---
 
 ### `nids_label_encoder.joblib`
-Saved label encoder that maps between:
-- numeric class IDs (e.g., 0,1,2…)
-- label strings (e.g., `normal`, `dos`, `probe`, `r2l`, `u2r`)
-
-Used by:
-- `realtime_predict.py`
-- `dashboard.py`
+Maps numeric class IDs to readable labels (`normal`, `dos`, `probe`, `r2l`, `u2r`).
 
 ---
 
 ### `incoming.csv`
-A CSV file containing **incoming traffic records** for realtime detection.
-
-Important:
-- It should contain **41 feature columns only**
-- **NO label column**
-- Can be:
-  - with headers (recommended), or
-  - without headers (must be in correct feature order)
-
-Used by:
-- `realtime_predict.py`
-- `dashboard.py`
+Live input file for realtime detection.
+- 41 feature columns only
+- No label column
+- Continuously updated by the traffic simulator
 
 ---
 
 ### `incoming copy.csv`
-A backup or alternate input file (same format as `incoming.csv`).  
-You can use this for testing without overwriting your main `incoming.csv`.
+Backup/reference copy of `incoming.csv`.
 
 ---
 
 ### `traffic_simulator.py`
-A script that **simulates realtime network traffic** by appending rows to `incoming.csv`.
-
-What it does:
-- Reads `kddcup.data_10_percent`
-- Randomly samples rows
-- Writes only the **41 features** (no label) to `incoming.csv`
-- Appends a new row every second (or per configured delay)
-
-Used for:
-- Demonstrating realtime detection without needing a real network capture system.
+Simulates realtime network traffic by appending rows to `incoming.csv`.
 
 ---
 
 ### `realtime_predict.py`
-A simple realtime prediction script.
-
-What it does:
-- Loads:
-  - `nids_kdd_pipeline.joblib`
-  - `nids_label_encoder.joblib`
-- Reads `incoming.csv`
-- Predicts attack type for each row using `pipeline.predict()`
-- Prints results to the terminal
-
-Use this when you want:
-- quick command-line predictions
-- debugging model output
+Terminal-based realtime intrusion detection script.
 
 ---
 
 ### `dashboard.py`
-A realtime dashboard (GUI) that displays predictions and summary stats.
-
-What it does:
-- Loads:
-  - `nids_kdd_pipeline.joblib`
-  - `nids_label_encoder.joblib`
-- Continuously reads `incoming.csv`
-- Predicts attack categories
-- Displays:
-  - live table of recent predictions
-  - counts of each attack type
-  - simple charts (depending on the dashboard implementation)
-
-Run this while `traffic_simulator.py` is feeding new rows to `incoming.csv`.
+Streamlit-based GUI dashboard for realtime intrusion detection.
 
 ---
 
-## Requirements (Modules to Install)
+## Requirements
 
-Install all required Python packages:
+### Python Version
+- Python 3.9 or higher recommended
+
+### Required Python Modules
 
 ```bash
-python -m pip install pandas numpy scikit-learn joblib
+python -m pip install pandas numpy scikit-learn joblib streamlit
+```
+
+---
+
+## How to Run the Project (Step-by-Step)
+
+### Step 1 — Navigate to Project Folder
+```bash
+cd path\to\your\project\folder
+```
+
+---
+
+### Step 2 — Verify Python
+```bash
+python --version
+```
+
+---
+
+### Step 3 — Train the Model (Run Once)
+```bash
+python nids_training.py --data "kddcup.data_10_percent" --use_categories
+```
+
+---
+
+### Step 4 — Prepare Incoming Traffic File
+```bash
+copy "incoming copy.csv" "incoming.csv"
+```
+
+---
+
+### Step 5 — Start Traffic Simulator
+```bash
+python traffic_simulator.py
+```
+
+---
+
+### Step 6 — (Optional) Terminal Realtime Detection
+```bash
+python realtime_predict.py
+```
+
+---
+
+### Step 7 — Start Streamlit Dashboard
+```bash
+python -m streamlit run dashboard.py
+```
+
+---
+
+## Execution Flow Summary
+
+```
+KDD Dataset
+     ↓
+Model Training
+     ↓
+Saved Model (.joblib)
+     ↓
+Traffic Simulator → incoming.csv
+     ↓
+Realtime Prediction
+     ↓
+Streamlit Dashboard
+```
+
+---
+
+## Notes
+
+- Always run Streamlit using `python -m streamlit run dashboard.py`
+- Do not add a label column to `incoming.csv`
+- Keep the traffic simulator running during demos
+
+---
+
+## Outcome
+
+This project demonstrates realtime intrusion detection, attack classification, and live visualization using machine learning and Streamlit.
