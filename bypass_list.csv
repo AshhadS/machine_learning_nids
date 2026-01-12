@@ -1,0 +1,2 @@
+time,event_id,predicted_type,severity,confidence,expires_at,reason
+2026-01-07T16:51:10Z,eedb093f72cf,normal,INFO,1.000,2026-01-07T17:51:10Z,nothing

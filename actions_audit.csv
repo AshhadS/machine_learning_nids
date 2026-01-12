@@ -1,0 +1,12 @@
+time,event_id,predicted_type,severity,action,reason,confidence
+2026-01-07T16:49:10Z,bd20850b2d9c,r2l,CRITICAL,BLOCK,,1.000
+2026-01-07T16:51:10Z,eedb093f72cf,normal,INFO,BYPASS,nothing,1.000
+2026-01-07T17:24:50Z,e4a227c0a1d6,dos,HIGH,BLOCK,,1.000
+2026-01-08T18:40:32Z,bd20850b2d9c,r2l,CRITICAL,BLOCK,,1.000
+2026-01-08T18:40:35Z,e4a227c0a1d6,dos,HIGH,BLOCK,,1.000
+2026-01-08T18:40:38Z,fffe64154b68,dos,HIGH,BLOCK,,1.000
+2026-01-11T15:50:11Z,e10b2ed917c1,dos,HIGH,BLOCK,,1.000
+2026-01-11T17:36:57Z,e10b2ed917c1,dos,HIGH,BLOCK,User chose block from dashboard,1.000
+2026-01-11T17:43:12Z,e4a227c0a1d6,dos,HIGH,BLOCK,User chose block from dashboard,1.000
+2026-01-11T17:46:12Z,a7fcb1e5b4d8,probe,MEDIUM,BLOCK,User chose block from Live Events,0.983
+2026-01-12T15:15:40Z,f1e8a184e55f,dos,HIGH,BLOCK,User chose block from Live Events,1.000

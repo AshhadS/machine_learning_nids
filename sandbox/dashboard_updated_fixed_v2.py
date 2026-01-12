@@ -344,41 +344,24 @@ st.title("🛡️ Realtime NIDS Dashboard")
 st.caption("Designed for understaffed teams: prioritized alerts, simple meaning, and quick actions (Block / Bypass).")
 
 # Sidebar settings
-# Navigation (keep at top so it is always visible)
-view = st.sidebar.radio(
-    "View",
-    ["🚨 Live Alerts", "📊 Live Events (Recent)", "🧑‍⚖️ Review Queue", "🧠 Model Training", "🗂️ Logs"],
-    index=0,
-)
+st.sidebar.header("Settings")
+model_path = st.sidebar.text_input("Model (.joblib)", "nids_kdd_pipeline.joblib")
+labels_path = st.sidebar.text_input("Labels (.joblib)", "nids_label_encoder.joblib")
+incoming_path = st.sidebar.text_input("Incoming feed (CSV)", "incoming.csv")
+
+refresh_sec = st.sidebar.slider("Auto-refresh interval (seconds)", 1, 10, 2)
+auto_refresh = st.sidebar.toggle("Auto-refresh", value=True)
+
+show_last_n = st.sidebar.slider("Process last N incoming rows", 50, 5000, 500, step=50)
+display_keep = st.sidebar.slider("Keep last N events in dashboard", 50, 2000, 500, step=50)
 
 st.sidebar.divider()
-# st.sidebar.header("Settings")
-# model_path = st.sidebar.text_input("Model (.joblib)", "nids_kdd_pipeline.joblib")
-# labels_path = st.sidebar.text_input("Labels (.joblib)", "nids_label_encoder.joblib")
-# incoming_path = st.sidebar.text_input("Incoming feed (CSV)", "incoming.csv")
+bypass_minutes_default = st.sidebar.slider("Bypass expiry (minutes)", 5, 240, 60, step=5)
+top_n = st.sidebar.slider("Top Alerts to show", 5, 50, 10)
 
-# refresh_sec = st.sidebar.slider("Auto-refresh interval (seconds)", 1, 10, 2)
-# auto_refresh = st.sidebar.toggle("Auto-refresh", value=True)
-
-# show_last_n = st.sidebar.slider("Process last N incoming rows", 50, 5000, 500, step=50)
-# display_keep = st.sidebar.slider("Keep last N events in dashboard", 50, 2000, 500, step=50)
-
-model_path = "nids_kdd_pipeline.joblib"
-labels_path = "nids_label_encoder.joblib"
-incoming_path = "incoming.csv"
-
-refresh_sec = 2
-auto_refresh = False
-# auto_refresh = True
-show_last_n = 10
-display_keep = 500
-
-# st.sidebar.divider()
-bypass_minutes_default = 60
-top_n = 10
-
-# st.sidebar.caption("Action logs written to:")
-# st.sidebar.code(f"{AUDIT_FILE}\n{BLOCKED_FILE}\n{BYPASS_FILE}", language="text")
+st.sidebar.divider()
+st.sidebar.caption("Action logs written to:")
+st.sidebar.code(f"{AUDIT_FILE}\n{BLOCKED_FILE}\n{BYPASS_FILE}", language="text")
 
 # Session state init
 if "last_seen_rows" not in st.session_state:
@@ -550,42 +533,22 @@ def render_live(bypass_active, top_n, auto_refresh, refresh_sec):
                     )
 
                     st.divider()
-                    
                     c1, c2 = st.columns(2)
 
-                    # Actions are allowed for ALL severities (per user request)
-                    allow_actions = True
-
                     with c1:
-                        if st.button(
-                            "⛔ Block",
-                            key=f"alerts_block_{event_id}_{i}",
-                            disabled=False,
-                        ):
-                            reason_block = "User chose block from dashboard"
-                            log_action(event_id, pred, sev, "BLOCK", reason_block, confv)
-                            add_block(event_id, pred, sev, confv, notes=reason_block)
-                            # Send to weekly human review queue so it can be verified/rejected later
-                            _row_dict = row.to_dict() if hasattr(row, "to_dict") else dict(row)
-                            log_pending_feedback(_row_dict, "BLOCK", pred, reason_block, confv)
+                        if st.button("⛔ Block", key=f"alerts_block_{event_id}_{i}"):
+                            log_action(event_id, pred, sev, "BLOCK", "", confv)
+                            add_block(event_id, pred, sev, confv, notes="User chose block from dashboard")
                             st.success("Recorded: BLOCK ✅")
 
                     with c2:
                         # Guardrails: require reason; extra warning label for severe cases
-                        reason_missing = (reason.strip() == "")
-                        bypass_label = "✅ Allow"
+                        bypass_disabled = (reason.strip() == "")
+                        bypass_label = "✅ Bypass (Allow)"
                         if sev in ("CRITICAL", "HIGH"):
-                            bypass_label = "⚠️ Allow "
+                            bypass_label = "⚠️ Bypass (Allow) — confirm"
 
-                        bypass_disabled = reason_missing
-                        # if reason_missing:
-                        #     st.caption("Add a reason to enable bypass.")
-
-                        if st.button(
-                            bypass_label,
-                            key=f"alerts_bypass_{event_id}_{i}",
-                            disabled=bypass_disabled,
-                        ):
+                        if st.button(bypass_label, key=f"alerts_bypass_{event_id}_{i}", disabled=bypass_disabled):
                             expires_at = (datetime.utcnow() + timedelta(minutes=int(bypass_minutes)))
                             expires_iso = expires_at.replace(microsecond=0).isoformat() + "Z"
 
@@ -595,115 +558,51 @@ def render_live(bypass_active, top_n, auto_refresh, refresh_sec):
                             log_pending_feedback(_row_dict, "BYPASS", proposed_label, reason, confv)
                             st.warning(f"Recorded: BYPASS ⚠️ (expires at {expires_iso})")
 
-
     # -----------------------------
     # Live Events Table + Charts
     # -----------------------------
-
-    if auto_refresh:
-        time.sleep(refresh_sec)
-        st.rerun()
-
-
-def render_live_recent(auto_refresh, refresh_sec):
-    events = st.session_state.events.copy()
-    if events.empty:
-        st.info("No events processed yet.")
-        if auto_refresh:
-            time.sleep(refresh_sec)
-            st.rerun()
-        return
-
     st.subheader("📊 Live Events (Recent)")
     st.caption("This table shows the most recent events seen by the dashboard (not necessarily prioritized).")
 
-    table_cols = ["seen_time_utc", "event_id", "severity_icon", "severity", "predicted_type"]
+    # Show a smaller subset for readability
+    table_cols = [
+        "seen_time_utc", "event_id", "severity_icon", "severity", "predicted_type"
+    ]
     if "confidence" in events.columns:
         table_cols.append("confidence")
 
-    # Show the recent events table
-    table_df = events[table_cols].copy().tail(50).reset_index(drop=True)
+    table_df = events[table_cols].copy()
+    table_df = table_df.tail(50).reset_index(drop=True)
+
     st.dataframe(table_df, use_container_width=True)
 
-    st.divider()
-    st.subheader("🧰 Take Action on a Recent Event")
-    st.caption("Select any event from the table above and choose Block/Bypass. Actions are allowed for **all** severities.")
-
-    # Select event_id from the currently displayed window
-    event_options = table_df["event_id"].astype(str).tolist()
-    selected_event_id = st.selectbox(
-        "Select event_id",
-        options=event_options,
-        key="live_recent_selected_event_id",
-    )
-
-    # Pull full row from the full events dataframe (includes features)
-    selected_rows = events[events["event_id"].astype(str) == str(selected_event_id)]
-    selected_row = selected_rows.iloc[-1].to_dict() if not selected_rows.empty else None
-
-    if selected_row:
-        sev = str(selected_row.get("severity", ""))
-        pred = str(selected_row.get("predicted_type", ""))
-        confv = selected_row.get("confidence", None)
-
-        st.markdown(f"**Selected:** {selected_row.get('severity_icon','')} {sev} — **{pred}**")
-
-        # Proposed label defaults to predicted_type
-        label_options = ["u2r", "r2l", "dos", "probe", "normal", "other"]
-        default_label = pred if pred in label_options else "other"
-        proposed_label = st.selectbox(
-            "Proposed label (for weekly review)",
-            options=label_options,
-            index=label_options.index(default_label),
-            key="live_recent_proposed_label",
-        )
-
-        reason = st.text_input(
-            "Reason (required for bypass)",
-            key="live_recent_reason",
-            placeholder="e.g., Approved test traffic / internal scan / false positive",
-        )
-
-        bypass_minutes = st.number_input(
-            "Bypass duration (minutes)",
-            min_value=5,
-            max_value=240,
-            value=30,
-            step=5,
-            key="live_recent_bypass_minutes",
-        )
-
-        c1, c2 = st.columns(2)
-        with c1:
-            if st.button("⛔ Block", key="live_recent_block"):
-                reason_block = "User chose block from Live Events"
-                log_action(selected_event_id, pred, sev, "BLOCK", reason_block, confv)
-                add_block(selected_event_id, pred, sev, confv, notes=reason_block)
-                log_pending_feedback(selected_row, "BLOCK", pred, reason_block, confv)
-                st.success("Recorded: BLOCK ✅")
-
-        with c2:
-            reason_missing = (reason.strip() == "")
-            # if reason_missing:
-            #     st.caption("Add a reason to enable bypass.")
-            if st.button("✅ Allow", key="live_recent_bypass", disabled=reason_missing):
-                expires_at = (datetime.utcnow() + timedelta(minutes=int(bypass_minutes)))
-                expires_iso = expires_at.replace(microsecond=0).isoformat() + "Z"
-                log_action(selected_event_id, pred, sev, "BYPASS", reason, confv)
-                add_bypass(selected_event_id, pred, sev, confv, expires_iso, reason)
-                log_pending_feedback(selected_row, "BYPASS", proposed_label, reason, confv)
-                st.warning(f"Recorded: BYPASS ⚠️ (expires at {expires_iso})")
-
+    # Distribution chart
     st.subheader("📈 Attack Type Distribution (Current View)")
-    st.bar_chart(events["predicted_type"].value_counts())
+    counts = events["predicted_type"].value_counts()
+    st.bar_chart(counts)
 
+    # Severity breakdown
     st.subheader("🧭 Severity Breakdown (Current View)")
-    st.bar_chart(events["severity"].value_counts())
+    sev_counts = events["severity"].value_counts()
+    st.bar_chart(sev_counts)
 
+    # -----------------------------
+    # Action Log Preview
+    # -----------------------------
+    st.subheader("🗂️ Recent Actions (Audit Preview)")
+    ensure_action_files()
+    try:
+        audit_df = pd.read_csv(AUDIT_FILE).tail(20)
+        st.dataframe(audit_df, use_container_width=True)
+    except Exception as e:
+        st.info(f"Audit log will appear after first action. ({e})")
+
+    # -----------------------------
+    # Auto-refresh
+    # -----------------------------
     if auto_refresh:
         time.sleep(refresh_sec)
         st.rerun()
-
 
 def render_review_queue():
     st.subheader("🧑‍⚖️ Review Queue (Weekly Human Check)")
@@ -770,20 +669,6 @@ def render_model_training(model_path: str, labels_path: str):
             pipeline, label_enc = load_artifacts(model_path, labels_path)
             X = verified[KDD_COLUMNS].copy()
             y = verified["verified_label"].astype(str).values
-            # Most classifiers need at least 2 classes in the training data.
-            uniq = pd.Series(y).astype(str).value_counts()
-            if len(uniq) < 2:
-                only_label = str(uniq.index[0]) if len(uniq) == 1 else "(none)"
-                msg = (
-                    "Training needs **at least 2 different labels** in VERIFIED items. "
-                    f"Right now you only have: **{only_label}** (count={int(uniq.iloc[0])}).\n\n"
-                    "Verify a few more events with a different label (e.g., normal + dos), then train again."
-                )
-                st.warning(msg)
-                with open(TRAIN_LOG_FILE, "a", encoding="utf-8") as f:
-                    f.write(f"{utc_now_iso()},TRAIN_SKIPPED,,only_one_class:{only_label},{len(verified)}\n")
-                return
-
             y_ids = label_enc.transform(y)
             classes = np.arange(len(label_enc.classes_))
 
@@ -839,16 +724,17 @@ def render_logs():
 # Navigation (prevents auto-refresh from interrupting other pages)
 # -----------------------------
 
-
+view = st.sidebar.radio(
+    "View",
+    ["🚨 Live Alerts", "🧑‍⚖️ Review Queue", "🧠 Model Training", "🗂️ Logs"],
+    index=0,
+)
 
 if view == "🚨 Live Alerts":
     render_live(bypass_active, top_n, auto_refresh, refresh_sec)
-elif view == "📊 Live Events (Recent)":
-    render_live_recent(auto_refresh, refresh_sec)
 elif view == "🧑‍⚖️ Review Queue":
     render_review_queue()
 elif view == "🧠 Model Training":
     render_model_training(model_path, labels_path)
 else:
     render_logs()
-
